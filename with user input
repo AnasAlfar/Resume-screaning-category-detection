@@ -1,0 +1,445 @@
+from google.colab import drive
+drive.mount('/content/drive')
+import pandas as pd 
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+data=pd.read_csv(r'/UpdatedResumeDataSet.csv')
+print(data.head(20))
+print(data.tail(20))
+print(data['Category'].unique())
+print("total unique category: {}". format(len(data['Category'].unique())))
+print(data['Category'].value_counts())
+import seaborn as sns
+
+plt.figure(figsize=(20,15))
+sns.countplot(y="Category",data=data)
+from matplotlib.gridspec import GridSpec
+count=data['Category'].value_counts()
+label=data['Category'].value_counts().keys()
+
+plt.figure(1, figsize=(25,25))
+grid=GridSpec(2,2)
+
+cmap=plt.get_cmap('coolwarm')
+
+color=[cmap(i) for i in np.linspace(0, 1, 5)]
+plt.subplot(grid[0,1], aspect=1, title='Distribution')
+
+pie=plt.pie(count, labels=label, autopct='%1.2f%%')
+plt.show()
+import re
+def clean(text):
+    text=re.sub('http\S+\s*', ' ', text)
+    text=re.sub('RT|cc', ' ', text)
+    text=re.sub('#\S+', '', text)
+    text=re.sub('@\S+', '', text)
+    text=re.sub('[%s]' % re.escape("""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"""), ' ', text)
+    text=re.sub('\s+', ' ', text)
+    text=re.sub(r'[^\x00-\x7f]', r' ', text)
+    return text
+
+data['clean text']=data.Resume.apply(lambda x: clean(x))
+print(data['clean text'])
+import nltk
+#nltk.download()
+from nltk.corpus import stopwords
+import string
+from wordcloud import WordCloud
+
+nltk.download('stopwords')
+stopwords=set(stopwords.words('english')+['``',"''"])
+
+total_words=[]
+sentences=data['Resume'].values
+cleanSentences =""
+nltk.download('punkt')
+
+for i in range(0,200):
+    text=clean(sentences[i])
+    cleanSentences+=text
+    words=nltk.word_tokenize(text)
+    for word in words:
+        if word not in stopwords and word not in string.punctuation:
+            total_words.append(word)
+            
+   
+word_freq_dist=nltk.FreqDist(total_words)
+most_common=word_freq_dist.most_common(100)
+
+
+print(most_common)
+
+WC=WordCloud().generate(cleanSentences)
+plt.figure(figsize=(15,15))
+plt.imshow(WC, interpolation='bilinear')
+
+from sklearn.preprocessing import LabelEncoder
+
+var=['Category']
+le=LabelEncoder()
+
+for i in var:
+    data[i]=le.fit_transform(data[i])
+    
+print(data)
+
+
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from scipy.sparse import hstack
+
+text=data['clean text'].values
+terget=data['Category'].values
+
+vect=TfidfVectorizer(
+    sublinear_tf=True,
+    stop_words='english',
+    max_features=2000)
+
+vect.fit(text)
+
+Word_feature=vect.transform(text)
+print(Word_feature)
+x_train, x_test, y_train, y_test=train_test_split(Word_feature, terget, random_state=0, test_size=0.2)
+print(x_train.shape)
+print(x_test.shape)
+
+import sklearn
+from sklearn.multiclass import OneVsOneClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+
+model=OneVsOneClassifier(LogisticRegression())
+model.fit(x_train, y_train)
+prediction=model.predict(x_test)
+
+print("training Score: {:.2f}".format(model.score(x_train, y_train)))
+print("test Score: {:.2f}".format(model.score(x_test, y_test)))
+
+print(y_test)
+prediction
+
+from sklearn import metrics
+#print model report on  a txt file
+
+f=open("ModelReport.txt","w")
+f=f.write("model report:"+str(model)+"\n"+str(metrics.classification_report(y_test, prediction)))
+
+print("model report: %s: \n %s\n" % (model, metrics.classification_report(y_test, prediction)))
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import r2_score
+from sklearn.neighbors import KNeighborsClassifier
+model=KNeighborsClassifier()
+model.fit(x_train, y_train)
+y_train_pred1 = model.predict(x_train)
+y_test_pred1 = model.predict(x_test)
+Knn_mse_train=mean_squared_error(y_train, y_train_pred1)
+Knn_mse_test=mean_squared_error(y_test, y_test_pred1)
+
+Knn_r2score_train=r2_score(y_train, y_train_pred1)
+Knn_r2score_test=r2_score(y_test, y_test_pred1)
+df_preds = pd.DataFrame({'Actual': y_test.squeeze(), 'Predicted': y_test_pred1.squeeze()})
+Knn_mae = mean_absolute_error(y_test, y_test_pred1)
+Knn_mse = mean_squared_error(y_test, y_test_pred1)
+Knn_rmse = np.sqrt(Knn_mse)
+print('MSE train: %.3f, test: %.3f' % (mean_squared_error(y_train, y_train_pred1),
+                mean_squared_error(y_test, y_test_pred1)))
+print('R^2 train: %.3f, test: %.3f' % (r2_score(y_train, y_train_pred1), r2_score(y_test, y_test_pred1)))
+print(df_preds)
+print(f'Mean absolute error: {Knn_mae:.2f}')
+print(f'Mean squared error: {Knn_mse:.2f}')
+print(f'Root mean squared error: {Knn_rmse:.2f}')
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import r2_score
+from sklearn.linear_model import LogisticRegression
+model=LogisticRegression()
+model.fit(x_train, y_train)
+y_train_pred2 = model.predict(x_train)
+y_test_pred2 = model.predict(x_test)
+Logistic_mse_train=mean_squared_error(y_train, y_train_pred2)
+Logistic_mse_test=mean_squared_error(y_test, y_test_pred2)
+
+Logistic_r2score_train=r2_score(y_train, y_train_pred2)
+Logistic_r2score_test=r2_score(y_test, y_test_pred2)
+df_preds = pd.DataFrame({'Actual': y_test.squeeze(), 'Predicted': y_test_pred2.squeeze()})
+Logistic_mae = mean_absolute_error(y_test, y_test_pred2)
+Logistic_mse = mean_squared_error(y_test, y_test_pred2)
+Logistic_rmse = np.sqrt(Logistic_mse)
+print('MSE train: %.3f, test: %.3f' % (mean_squared_error(y_train, y_train_pred2),
+                mean_squared_error(y_test, y_test_pred2)))
+print('R^2 train: %.3f, test: %.3f' % (r2_score(y_train, y_train_pred2), r2_score(y_test, y_test_pred2)))
+print(df_preds)
+print(f'Mean absolute error: {Logistic_mae:.2f}')
+print(f'Mean squared error: {Logistic_mse:.2f}')
+print(f'Root mean squared error: {Logistic_rmse:.2f}')
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import r2_score
+from sklearn.tree import DecisionTreeClassifier
+model=DecisionTreeClassifier(random_state = 0)
+model.fit(x_train, y_train)
+y_train_pred3 = model.predict(x_train)
+y_test_pred3 = model.predict(x_test)
+DTree_mse_train=mean_squared_error(y_train, y_train_pred3)
+DTree_mse_test=mean_squared_error(y_test, y_test_pred3)
+DTree_r2score_train=r2_score(y_train, y_train_pred3)
+DTree_r2score_test=r2_score(y_test, y_test_pred3)
+df_preds = pd.DataFrame({'Actual': y_test.squeeze(), 'Predicted': y_test_pred3.squeeze()})
+DTree_mae = mean_absolute_error(y_test, y_test_pred3)
+DTree_mse = mean_squared_error(y_test, y_test_pred3)
+DTree_rmse = np.sqrt(DTree_mse)
+print('MSE train: %.3f, test: %.3f' % (mean_squared_error(y_train, y_train_pred3),
+                mean_squared_error(y_test, y_test_pred3)))
+print('R^2 train: %.3f, test: %.3f' % (r2_score(y_train, y_train_pred3), r2_score(y_test, y_test_pred3)))
+print(df_preds)
+print(f'Mean absolute error: {DTree_mae:.2f}')
+print(f'Mean squared error: {DTree_mse:.2f}')
+print(f'Root mean squared error: {DTree_rmse:.2f}')
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import r2_score
+from sklearn.ensemble import RandomForestClassifier
+model=RandomForestClassifier(n_estimators = 5, random_state = 0)
+model.fit(x_train, y_train)
+y_train_pred4 = model.predict(x_train)
+y_test_pred4 = model.predict(x_test)
+RForesst_mse_train=mean_squared_error(y_train, y_train_pred4)
+RForesst_mse_test=mean_squared_error(y_test, y_test_pred4)
+
+RForesst_r2score_train=r2_score(y_train, y_train_pred4)
+RForesst_r2score_test=r2_score(y_test, y_test_pred4)
+df_preds = pd.DataFrame({'Actual': y_test.squeeze(), 'Predicted': y_test_pred4.squeeze()})
+RForesst_mae = mean_absolute_error(y_test, y_test_pred4)
+RForesst_mse = mean_squared_error(y_test, y_test_pred4)
+RForesst_rmse = np.sqrt(RForesst_mse)
+print('MSE train: %.3f, test: %.3f' % (mean_squared_error(y_train, y_train_pred4),
+                mean_squared_error(y_test, y_test_pred4)))
+print('R^2 train: %.3f, test: %.3f' % (r2_score(y_train, y_train_pred4), r2_score(y_test, y_test_pred4)))
+print(df_preds)
+print(f'Mean absolute error: {RForesst_mae:.2f}')
+print(f'Mean squared error: {RForesst_mse:.2f}')
+print(f'Root mean squared error: {RForesst_rmse:.2f}')
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import r2_score
+from sklearn.neural_network import MLPClassifier
+plt.style.use('ggplot')
+model=MLPClassifier()
+model.fit(x_train, y_train)
+y_train_pred5 = model.predict(x_train)
+y_test_pred5 = model.predict(x_test)
+MLP_mse_train=mean_squared_error(y_train, y_train_pred5)
+MLP_mse_test=mean_squared_error(y_test, y_test_pred5)
+
+MLP_r2score_train=r2_score(y_train, y_train_pred5)
+MLP_r2score_test=r2_score(y_test, y_test_pred5)
+df_preds = pd.DataFrame({'Actual': y_test.squeeze(), 'Predicted': y_test_pred5.squeeze()})
+MLP_mae = mean_absolute_error(y_test, y_test_pred5)
+MLP_mse = mean_squared_error(y_test, y_test_pred5)
+MLP_rmse = np.sqrt(MLP_mse)
+print('MSE train: %.3f, test: %.3f' % (mean_squared_error(y_train, y_train_pred5),
+                mean_squared_error(y_test, y_test_pred5)))
+print('R^2 train: %.3f, test: %.3f' % (r2_score(y_train, y_train_pred5), r2_score(y_test, y_test_pred5)))
+print(df_preds)
+print(f'Mean absolute error: {MLP_mae:.2f}')
+print(f'Mean squared error: {MLP_mse:.2f}')
+print(f'Root mean squared error: {MLP_rmse:.2f}')
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import r2_score
+from sklearn.svm import SVC
+regressor = SVC(kernel = 'rbf')
+model=SVC()
+model.fit(x_train, y_train)
+y_train_pred6 = model.predict(x_train)
+y_test_pred6 = model.predict(x_test)
+SVC_mse_train=mean_squared_error(y_train, y_train_pred6)
+SVC_mse_test=mean_squared_error(y_test, y_test_pred6)
+
+SVC_r2score_train=r2_score(y_train, y_train_pred6)
+SVC_r2score_test=r2_score(y_test, y_test_pred6)
+df_preds = pd.DataFrame({'Actual': y_test.squeeze(), 'Predicted': y_test_pred6.squeeze()})
+SVC_mae = mean_absolute_error(y_test, y_test_pred6)
+SVC_mse = mean_squared_error(y_test, y_test_pred6)
+SVC_rmse = np.sqrt(SVC_mse)
+print('MSE train: %.3f, test: %.3f' % (mean_squared_error(y_train, y_train_pred6),
+                mean_squared_error(y_test, y_test_pred6)))
+print('R^2 train: %.3f, test: %.3f' % (r2_score(y_train, y_train_pred6), r2_score(y_test, y_test_pred6)))
+print(df_preds)
+print(f'Mean absolute error: {SVC_mae:.2f}')
+print(f'Mean squared error: {SVC_mse:.2f}')
+print(f'Root mean squared error: {SVC_rmse:.2f}')
+from xgboost import XGBClassifier
+xgb_classifier= XGBClassifier().fit(x_train, y_train)
+y_train_pred7 = xgb_classifier.predict(x_train)
+y_test_pred7 = xgb_classifier.predict(x_test)
+XGBC_mse_train=mean_squared_error(y_train, y_train_pred7)
+XGBC_mse_test=mean_squared_error(y_test, y_test_pred7)
+XGBC_r2score_train=r2_score(y_train, y_train_pred7)
+XGBC_r2score_test=r2_score(y_test, y_test_pred7)
+df_preds_xgb = pd.DataFrame({'Actual': y_test.squeeze(), 'Predicted': y_test_pred7.squeeze()})
+XGBC_mae = mean_absolute_error(y_test, y_test_pred7)
+XGBC_mse= mean_squared_error(y_test, y_test_pred7)
+XGBC_rmse= np.sqrt(XGBC_mse)
+print('MSE train: %.3f, test: %.3f' % (mean_squared_error(y_train, y_train_pred7),
+                mean_squared_error(y_test, y_test_pred7)))
+print('R^2 train: %.3f, test: %.3f' % (r2_score(y_train, y_train_pred7), r2_score(y_test, y_test_pred7)))
+print(df_preds_xgb)
+print(f'Mean absolute error: {XGBC_mae:.2f}')
+print(f'Mean squared error: {XGBC_mse:.2f}')
+print(f'Root mean squared error: {XGBC_rmse:.2f}')
+
+from sklearn.ensemble import BaggingClassifier
+xgb_regressor= BaggingClassifier(
+
+ base_estimator=SVC(),
+
+ n_estimators=10,
+
+ random_state=0
+
+).fit(x_train, y_train)
+y_train_pred8 = xgb_regressor.predict(x_train)
+y_test_pred8 = xgb_regressor.predict(x_test)
+Bagging_mse_train=mean_squared_error(y_train, y_train_pred8)
+Bagging_mse_test=mean_squared_error(y_test, y_test_pred8)
+Bagging_r2score_train=r2_score(y_train, y_train_pred8)
+Bagging_r2score_test=r2_score(y_test, y_test_pred8)
+df_preds_xgb = pd.DataFrame({'Actual': y_test.squeeze(), 'Predicted': y_test_pred8.squeeze()})
+Bagging_mae = mean_absolute_error(y_test, y_test_pred8)
+Bagging_mse= mean_squared_error(y_test, y_test_pred8)
+Bagging_rmse = np.sqrt(Bagging_mse)
+print('MSE train: %.3f, test: %.3f' % (mean_squared_error(y_train, y_train_pred8),
+                mean_squared_error(y_test, y_test_pred8)))
+print('R^2 train: %.3f, test: %.3f' % (r2_score(y_train, y_train_pred7), r2_score(y_test, y_test_pred8)))
+print(df_preds_xgb)
+print(f'Mean absolute error: {Bagging_mae:.2f}')
+print(f'Mean squared error: {Bagging_mse:.2f}')
+print(f'Root mean squared error: {Bagging_rmse:.2f}')
+from sklearn.linear_model import SGDClassifier
+xgb_regressor= SGDClassifier().fit(x_train, y_train)
+y_train_pred9 = xgb_regressor.predict(x_train)
+y_test_pred9 = xgb_regressor.predict(x_test)
+SGDC_mse_train=mean_squared_error(y_train, y_train_pred9)
+SGDC_mse_test=mean_squared_error(y_test, y_test_pred9)
+SGDC_r2score_train=r2_score(y_train, y_train_pred9)
+SGDC_r2score_test=r2_score(y_test, y_test_pred9)
+df_preds_xgb = pd.DataFrame({'Actual': y_test.squeeze(), 'Predicted': y_test_pred9.squeeze()})
+SGDC_mae = mean_absolute_error(y_test, y_test_pred9)
+SGDC_mse= mean_squared_error(y_test, y_test_pred9)
+SGDC_rmse = np.sqrt(SGDC_mse)
+print('MSE train: %.3f, test: %.3f' % (mean_squared_error(y_train, y_train_pred9),
+                mean_squared_error(y_test, y_test_pred9)))
+print('R^2 train: %.3f, test: %.3f' % (r2_score(y_train, y_train_pred9), r2_score(y_test, y_test_pred9)))
+print(df_preds_xgb)
+print(f'Mean absolute error: {SGDC_mae:.2f}')
+print(f'Mean squared error: {SGDC_mse:.2f}')
+print(f'Root mean squared error: {SGDC_rmse:.2f}')
+
+evaluation = [('accuracy score test', Knn_r2score_test, Logistic_r2score_test, 
+          DTree_r2score_test,RForesst_r2score_test,
+          MLP_r2score_test,SVC_r2score_test,XGBC_r2score_test,Bagging_r2score_test,SGDC_r2score_test)
+         , ('accuracy score train',Knn_r2score_train, Logistic_r2score_train, 
+            DTree_r2score_train,RForesst_r2score_train,MLP_r2score_train,SVC_r2score_train,
+            XGBC_r2score_train,Bagging_r2score_train,SGDC_r2score_train), 
+         ('mse train', Knn_mse_train, Logistic_mse_train, DTree_mse_train, RForesst_mse_train,MLP_mse_train,
+          SVC_mse_test,XGBC_mse_train,Bagging_mse_train,SGDC_mse_train),('mse test',Knn_mse_test, Logistic_mse_test, DTree_mse_test, RForesst_mse_test,MLP_mse_test,
+           SVC_mse_train,XGBC_mse_test,Bagging_mse_test,SGDC_mse_test),('mae',Knn_mae, Logistic_mae, DTree_mae, RForesst_mae,MLP_mae,
+            SVC_mae,XGBC_mae,Bagging_mae,SGDC_mae),('mse',Knn_mse, Logistic_mse, DTree_mse, RForesst_mse,MLP_mse,
+             SVC_mse,XGBC_mse,Bagging_mse,SGDC_mse),('rmse',Knn_rmse, Logistic_rmse, DTree_rmse, RForesst_rmse,MLP_rmse,
+              SVC_rmse,Bagging_rmse,SGDC_rmse)] 
+labels = ['index','KNN', 'Logistic', 'Decesion tree', 'RForesst', 'MLP (neural netweork)','SVC', 'XGBC','Bagging','SGDC'] 
+df = pd.DataFrame.from_records(evaluation, columns=labels) 
+df
+
+y_test=pd.DataFrame(y_test)
+y_test
+
+y_test.reset_index(inplace=True)
+y_test.drop('index',axis=1, inplace=True) 
+y_test
+
+y_test_pred3=pd.DataFrame(prediction)
+y_test_pred3plt.plot(y_test,color='red',label='Actual')
+plt.plot(y_test_pred3,color='purple',label="Predicted")
+plt.xlabel("ID")
+plt.ylabel("Label")
+leg = plt.legend()
+plt.show()
+
+
+
+#user input cv
+data1=pd.read_excel(r'/content/drive/MyDrive/Colab Notebooks/Book1.xlsx')
+data1
+print(data1['Resume'])
+
+print(data1['Category'].unique())
+print("total unique category: {}". format(len(data1['Category'].unique())))
+print(data1['Category'].value_counts())
+
+import re
+def clean(text):
+    text=re.sub('http\S+\s*', ' ', text)
+    text=re.sub('RT|cc', ' ', text)
+    text=re.sub('#\S+', '', text)
+    text=re.sub('@\S+', '', text)
+    text=re.sub('[%s]' % re.escape("""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"""), ' ', text)
+    text=re.sub('\s+', ' ', text)
+    text=re.sub(r'[^\x00-\x7f]', r' ', text)
+    return text
+  
+data1['clean text']=data1.Resume.apply(lambda x: clean(x))
+
+sentences[0]
+import nltk
+#nltk.download()
+from nltk.corpus import stopwords
+import string
+from wordcloud import WordCloud
+
+nltk.download('stopwords')
+stopwords=set(stopwords.words('english')+['``',"''"])
+total_words=[]
+sentences=data1['Resume'].values
+cleanSentences =""
+nltk.download('punkt')
+text=clean(sentences[0])
+cleanSentences+=text
+words=nltk.word_tokenize(text)
+for word in words:
+    if word not in stopwords and word not in string.punctuation:
+        total_words.append(word)
+
+word_freq_dist=nltk.FreqDist(total_words)
+most_common=word_freq_dist.most_common(100)
+from sklearn.preprocessing import LabelEncoder
+
+var=['Category']
+le=LabelEncoder()
+
+for i in var:
+    data1[i]=le.fit_transform(data1[i])
+    
+print(data1)
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from scipy.sparse import hstack
+
+text=data1['clean text'].values
+
+vect=TfidfVectorizer(
+    sublinear_tf=True,
+    stop_words='english',
+    max_features=2000)
+
+vect.fit(text)
+Word_feature=vect.transform(text)
+print(Word_feature)
+model=OneVsOneClassifier(LogisticRegression())
+model.fit(x_train, y_train)
+prediction=model.predict(Word_feature)
+print(prediction)
